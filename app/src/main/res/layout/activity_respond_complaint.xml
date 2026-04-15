@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:orientation="vertical">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ответ на жалобу"
+        android:textSize="18sp"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/etResponse"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Текст ответа"
+        android:minLines="4"
+        android:gravity="top" />
+
+    <Button
+        android:id="@+id/btnSendResponse"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Отправить ответ"
+        android:layout_marginTop="12dp" />
+</LinearLayout>
