@@ -11,7 +11,7 @@ import java.util.List;
 
 public class DBHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "civic_app.db";
-    private static final int DB_VERSION = 4;
+    private static final int DB_VERSION = 5;
 
     public DBHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -37,14 +37,6 @@ public class DBHelper extends SQLiteOpenHelper {
         user.put("password", "user");
         user.put("role", "user");
         db.insert("users", null, user);
-
-        // seed sample news
-        ContentValues n1 = new ContentValues();
-        n1.put("title", "Добро пожаловать");
-        n1.put("content", "Приложение для граждан и администрации запущено");
-        n1.put("ts", System.currentTimeMillis());
-        n1.put("image_base64", (String) null);
-        db.insert("news", null, n1);
 
         // seed services catalog
         ContentValues s1 = new ContentValues();
@@ -98,6 +90,12 @@ public class DBHelper extends SQLiteOpenHelper {
             db.execSQL("ALTER TABLE complaints ADD COLUMN district TEXT");
             db.execSQL("ALTER TABLE complaints ADD COLUMN address TEXT");
             db.execSQL("ALTER TABLE complaints ADD COLUMN service_type TEXT");
+        }
+        if (oldVersion < 5) {
+            // Очищаем тестовые данные — оставляем только пользователей и каталог услуг
+            db.execSQL("DELETE FROM news");
+            db.execSQL("DELETE FROM complaints");
+            db.execSQL("DELETE FROM service_requests");
         }
     }
 
