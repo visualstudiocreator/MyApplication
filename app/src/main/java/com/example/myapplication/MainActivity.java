@@ -37,9 +37,6 @@ public class MainActivity extends AppCompatActivity {
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        if (getSupportActionBar() != null) {
-            getSupportActionBar().setDisplayShowTitleEnabled(false);
-        }
 
         recyclerView = findViewById(R.id.recyclerNews);
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
