@@ -1,7 +1,10 @@
 package com.example.myapplication;
 
 import android.os.Bundle;
+import android.text.method.ScrollingMovementMethod;
+import android.widget.TextView;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -44,6 +47,26 @@ public class MyComplaintsActivity extends AppCompatActivity {
 
     private void loadComplaints() {
         List<DBHelper.Complaint> list = db.getComplaintsByUser(username);
-        recyclerView.setAdapter(new ComplaintAdapter(list));
+        recyclerView.setAdapter(new ComplaintAdapter(list, this::showReportDialog));
+    }
+
+    private void showReportDialog(DBHelper.Complaint complaint) {
+        String report = ComplaintReportHelper.buildReport(complaint);
+        if (report == null) {
+            return;
+        }
+
+        TextView messageView = new TextView(this);
+        int padding = (int) (16 * getResources().getDisplayMetrics().density);
+        messageView.setPadding(padding, padding, padding, padding);
+        messageView.setText(report);
+        messageView.setTextSize(14f);
+        messageView.setMovementMethod(new ScrollingMovementMethod());
+
+        new AlertDialog.Builder(this)
+                .setTitle("Отчёт о выполненных работах")
+                .setView(messageView)
+                .setPositiveButton("Закрыть", null)
+                .show();
     }
 }

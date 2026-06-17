@@ -16,14 +16,20 @@
         android:id="@+id/etResponse"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="Текст ответа"
+        android:hint="Ваш ответ заявителю"
         android:minLines="4"
         android:gravity="top" />
+
+    <Spinner
+        android:id="@+id/spinnerStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp" />
 
     <Button
         android:id="@+id/btnSendResponse"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Отправить ответ"
+        android:text="Сохранить статус и ответ"
         android:layout_marginTop="12dp" />
 </LinearLayout>

@@ -97,10 +97,11 @@ public class AdminComplaintsActivity extends AppCompatActivity {
     }
 
     private String mapStatus(String s) {
-        if (s == null || s.isEmpty()) return "Открыта";
+        if (s == null || s.isEmpty()) return "Ожидает";
         String v = s.toLowerCase();
-        if (v.equals("open")) return "Открыта";
-        if (v.equals("answered")) return "Отвечена";
+        if (v.equals("open") || v.equals("pending")) return "Ожидает";
+        if (v.equals("in_progress")) return "В работе";
+        if (v.equals("answered") || v.equals("completed")) return "Завершено";
         return s;
     }
 }

@@ -11,7 +11,7 @@ import java.util.List;
 
 public class DBHelper extends SQLiteOpenHelper {
     private static final String DB_NAME = "civic_app.db";
-    private static final int DB_VERSION = 5;
+    private static final int DB_VERSION = 7;
 
     public DBHelper(Context context) {
         super(context, DB_NAME, null, DB_VERSION);
@@ -22,8 +22,6 @@ public class DBHelper extends SQLiteOpenHelper {
         db.execSQL("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT, role TEXT)");
         db.execSQL("CREATE TABLE news (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, content TEXT, ts INTEGER, image_base64 TEXT)");
         db.execSQL("CREATE TABLE complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, text TEXT, ts INTEGER, response TEXT, status TEXT, district TEXT, address TEXT, service_type TEXT)");
-        db.execSQL("CREATE TABLE services (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, requirements TEXT)");
-        db.execSQL("CREATE TABLE service_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, service_id INTEGER, comment TEXT, ts INTEGER, status TEXT)");
 
         // seed users
         ContentValues admin = new ContentValues();
@@ -38,24 +36,6 @@ public class DBHelper extends SQLiteOpenHelper {
         user.put("role", "user");
         db.insert("users", null, user);
 
-        // seed services catalog
-        ContentValues s1 = new ContentValues();
-        s1.put("name", "Регистрация по месту жительства");
-        s1.put("description", "Подача заявления на регистрацию или изменение места жительства.");
-        s1.put("requirements", "Паспорт, заявление, договор найма или свидетельство собственности.");
-        db.insert("services", null, s1);
-
-        ContentValues s2 = new ContentValues();
-        s2.put("name", "Выдача справки");
-        s2.put("description", "Получение официальной справки из администрации (о составе семьи, проживании и т.п.).");
-        s2.put("requirements", "Паспорт, заявление, при необходимости — подтверждающие документы.");
-        db.insert("services", null, s2);
-
-        ContentValues s3 = new ContentValues();
-        s3.put("name", "Запись на прием к специалисту");
-        s3.put("description", "Онлайн-запись на консультацию в профильном отделе администрации.");
-        s3.put("requirements", "Паспорт, краткое описание вопроса.");
-        db.insert("services", null, s3);
     }
 
     @Override
@@ -63,39 +43,26 @@ public class DBHelper extends SQLiteOpenHelper {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE news ADD COLUMN image_base64 TEXT");
         }
-        if (oldVersion < 3) {
-            db.execSQL("CREATE TABLE IF NOT EXISTS services (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, description TEXT, requirements TEXT)");
-            db.execSQL("CREATE TABLE IF NOT EXISTS service_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT, service_id INTEGER, comment TEXT, ts INTEGER, status TEXT)");
-            // optional seed to ensure catalog exists after upgrade
-            Cursor cur = db.query("services", new String[]{"id"}, null, null, null, null, null);
-            try {
-                if (!cur.moveToFirst()) {
-                    ContentValues s1 = new ContentValues();
-                    s1.put("name", "Регистрация по месту жительства");
-                    s1.put("description", "Подача заявления на регистрацию или изменение места жительства.");
-                    s1.put("requirements", "Паспорт, заявление, договор найма или свидетельство собственности.");
-                    db.insert("services", null, s1);
-
-                    ContentValues s2 = new ContentValues();
-                    s2.put("name", "Выдача справки");
-                    s2.put("description", "Получение официальной справки из администрации (о составе семьи, проживании и т.п.).");
-                    s2.put("requirements", "Паспорт, заявление, при необходимости — подтверждающие документы.");
-                    db.insert("services", null, s2);
-                }
-            } finally {
-                cur.close();
-            }
-        }
         if (oldVersion < 4) {
             db.execSQL("ALTER TABLE complaints ADD COLUMN district TEXT");
             db.execSQL("ALTER TABLE complaints ADD COLUMN address TEXT");
             db.execSQL("ALTER TABLE complaints ADD COLUMN service_type TEXT");
         }
         if (oldVersion < 5) {
-            // Очищаем тестовые данные — оставляем только пользователей и каталог услуг
+            // Очищаем тестовые данные.
             db.execSQL("DELETE FROM news");
             db.execSQL("DELETE FROM complaints");
-            db.execSQL("DELETE FROM service_requests");
+        }
+        if (oldVersion < 6) {
+            // Миграция старых статусов жалоб к новой модели.
+            db.execSQL("UPDATE complaints SET status='pending' WHERE status IS NULL OR status='' OR status='open'");
+            db.execSQL("UPDATE complaints SET status='completed' WHERE status='answered'");
+            db.execSQL("DROP TABLE IF EXISTS services");
+            db.execSQL("DROP TABLE IF EXISTS service_requests");
+        }
+        if (oldVersion < 7) {
+            db.execSQL("DELETE FROM news");
+            db.execSQL("DELETE FROM complaints");
         }
     }
 
@@ -181,7 +148,7 @@ public class DBHelper extends SQLiteOpenHelper {
         cv.put("text", text);
         cv.put("ts", System.currentTimeMillis());
         cv.put("response", "");
-        cv.put("status", "open");
+        cv.put("status", "pending");
         cv.put("district", district);
         cv.put("address", address);
         cv.put("service_type", serviceType);
@@ -216,11 +183,46 @@ public class DBHelper extends SQLiteOpenHelper {
         return list;
     }
 
+    public DBHelper.Complaint getComplaintById(int id) {
+        SQLiteDatabase db = getReadableDatabase();
+        Cursor c = db.query(
+                "complaints",
+                new String[]{"id", "username", "text", "ts", "response", "status", "district", "address", "service_type"},
+                "id=?",
+                new String[]{String.valueOf(id)},
+                null,
+                null,
+                null
+        );
+        try {
+            if (!c.moveToFirst()) {
+                return null;
+            }
+            Complaint comp = new Complaint();
+            comp.id = c.getInt(0);
+            comp.username = c.getString(1);
+            comp.text = c.getString(2);
+            comp.ts = c.getLong(3);
+            comp.response = c.getString(4);
+            comp.status = c.getString(5);
+            comp.district = c.getString(6);
+            comp.address = c.getString(7);
+            comp.serviceType = c.getString(8);
+            return comp;
+        } finally {
+            c.close();
+        }
+    }
+
     public void respondToComplaint(int id, String response) {
+        updateComplaintProgress(id, "completed", response);
+    }
+
+    public void updateComplaintProgress(int id, String status, String response) {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues cv = new ContentValues();
         cv.put("response", response);
-        cv.put("status", "answered");
+        cv.put("status", status);
         db.update("complaints", cv, "id=?", new String[]{String.valueOf(id)});
     }
 
@@ -243,113 +245,5 @@ public class DBHelper extends SQLiteOpenHelper {
         public String district;
         public String address;
         public String serviceType;
-    }
-
-    public List<Service> getAllServices() {
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.query("services", new String[]{"id", "name", "description", "requirements"}, null, null, null, null, "name ASC");
-        List<Service> list = new ArrayList<>();
-        try {
-            while (c.moveToNext()) {
-                Service s = new Service();
-                s.id = c.getInt(0);
-                s.name = c.getString(1);
-                s.description = c.getString(2);
-                s.requirements = c.getString(3);
-                list.add(s);
-            }
-        } finally {
-            c.close();
-        }
-        return list;
-    }
-
-    public String getServiceNameById(int id) {
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.query("services", new String[]{"name"}, "id=?", new String[]{String.valueOf(id)}, null, null, null);
-        try {
-            if (c.moveToFirst()) {
-                return c.getString(0);
-            }
-            return String.valueOf(id);
-        } finally {
-            c.close();
-        }
-    }
-
-    public void addServiceRequest(String username, int serviceId, String comment) {
-        SQLiteDatabase db = getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("username", username);
-        cv.put("service_id", serviceId);
-        cv.put("comment", comment);
-        cv.put("ts", System.currentTimeMillis());
-        cv.put("status", "submitted");
-        db.insert("service_requests", null, cv);
-    }
-
-    public List<ServiceRequest> getServiceRequestsByUser(String username) {
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.query("service_requests", new String[]{"id", "username", "service_id", "comment", "ts", "status"}, "username=?", new String[]{username}, null, null, "ts DESC");
-        List<ServiceRequest> list = new ArrayList<>();
-        try {
-            while (c.moveToNext()) {
-                ServiceRequest r = new ServiceRequest();
-                r.id = c.getInt(0);
-                r.username = c.getString(1);
-                r.serviceId = c.getInt(2);
-                r.comment = c.getString(3);
-                r.ts = c.getLong(4);
-                r.status = c.getString(5);
-                list.add(r);
-            }
-        } finally {
-            c.close();
-        }
-        return list;
-    }
-
-    public void updateServiceRequestStatus(int id, String status) {
-        SQLiteDatabase db = getWritableDatabase();
-        ContentValues cv = new ContentValues();
-        cv.put("status", status);
-        db.update("service_requests", cv, "id=?", new String[]{String.valueOf(id)});
-    }
-
-    public List<ServiceRequest> getAllServiceRequests() {
-        SQLiteDatabase db = getReadableDatabase();
-        Cursor c = db.query("service_requests", new String[]{"id", "username", "service_id", "comment", "ts", "status"}, null, null, null, null, "ts DESC");
-        List<ServiceRequest> list = new ArrayList<>();
-        try {
-            while (c.moveToNext()) {
-                ServiceRequest r = new ServiceRequest();
-                r.id = c.getInt(0);
-                r.username = c.getString(1);
-                r.serviceId = c.getInt(2);
-                r.comment = c.getString(3);
-                r.ts = c.getLong(4);
-                r.status = c.getString(5);
-                list.add(r);
-            }
-        } finally {
-            c.close();
-        }
-        return list;
-    }
-
-    public static class Service {
-        public int id;
-        public String name;
-        public String description;
-        public String requirements;
-    }
-
-    public static class ServiceRequest {
-        public int id;
-        public String username;
-        public int serviceId;
-        public String comment;
-        public long ts;
-        public String status;
     }
 }
